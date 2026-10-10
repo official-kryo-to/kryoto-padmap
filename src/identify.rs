@@ -155,10 +155,12 @@ const KNOWN: &[(u16, u16, Family, &str, Features)] = &[
     (vendor::STEELSERIES, 0x1420, Family::Xbox, "SteelSeries Nimbus", PLAIN),
     (vendor::STEELSERIES, 0x1430, Family::Xbox, "SteelSeries Stratus Duo", PLAIN),
     (vendor::STEELSERIES, 0x1431, Family::Xbox, "SteelSeries Stratus Duo", PLAIN),
+    (vendor::STEELSERIES, 0x1434, Family::Xbox, "SteelSeries Stratus+", PLAIN),
     (vendor::STEELSERIES_BT, 0x1417, Family::Xbox, "SteelSeries Stratus XL", PLAIN),
     (vendor::STEELSERIES_BT, 0x1419, Family::Xbox, "SteelSeries Stratus", PLAIN),
     (vendor::STEELSERIES_BT, 0x1420, Family::Xbox, "SteelSeries Nimbus", PLAIN),
     (vendor::STEELSERIES_BT, 0x1431, Family::Xbox, "SteelSeries Stratus Duo", PLAIN),
+    (vendor::STEELSERIES_BT, 0x1434, Family::Xbox, "SteelSeries Stratus+", PLAIN),
     // Logitech in XInput mode
     (vendor::LOGITECH, 0xc21d, Family::Xbox, "Logitech F310", PLAIN),
     (vendor::LOGITECH, 0xc21e, Family::Xbox, "Logitech F510", PLAIN),
@@ -287,8 +289,9 @@ mod tests {
         // What Windows (in Dutch) and SDL called a SteelSeries pad.
         for name in ["HID-spelbesturing", "As: 6 knop: 16 gamepad met kapschakelaar"] {
             let m = identify(Some(0x0111), Some(0x1434), name);
-            assert_eq!((m.family, m.name.as_str(), m.matched), (Family::Xbox, "SteelSeries controller", Matched::Maker));
+            assert_eq!((m.family, m.name.as_str(), m.matched), (Family::Xbox, "SteelSeries Stratus+", Matched::Ids));
         }
+        assert_eq!(identify(Some(0x1038), Some(0x1434), "XInput Controller #1").name, "SteelSeries Stratus+");
         assert_eq!(identify(Some(0x0111), Some(0x1431), "x").name, "SteelSeries Stratus Duo");
     }
 
