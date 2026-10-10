@@ -4,7 +4,13 @@
 //! product id and a name. The ids are exact when they are there; the name is
 //! what is left when they are not (XInput reports no ids at all, and Bluetooth
 //! stacks and third-party pads are loose with them). [`identify`] tries the
-//! ids first, then the name, and otherwise says "a gamepad".
+//! ids first, then the name, then the maker, and otherwise says "a gamepad".
+//!
+//! The name a system gives an unknown pad is often no name at all: Windows
+//! calls a DirectInput pad "HID-compliant game controller" in the user's own
+//! language, or describes it ("6 axis 16 button gamepad with hat switch").
+//! [`is_generic_name`] tells those apart, so a screen can show the maker's
+//! name instead.
 
 /// The four kinds of face-button printing there are, which is what decides
 /// what a button is called and what the pad looks like on screen.
@@ -74,6 +80,8 @@ pub struct Model {
 pub enum Matched {
     Ids,
     Name,
+    /// An unknown product from a known maker: named after the maker.
+    Maker,
     Fallback,
 }
 
@@ -84,6 +92,9 @@ pub mod vendor {
     pub const VALVE: u16 = 0x28de;
     pub const LOGITECH: u16 = 0x046d;
     pub const EIGHTBITDO: u16 = 0x2dc8;
+    pub const STEELSERIES: u16 = 0x1038;
+    /// SteelSeries' other vendor id, on its Bluetooth pads.
+    pub const STEELSERIES_BT: u16 = 0x0111;
 }
 
 const XBOX_360: Features = Features { touchpad: false, gyro: false, paddles: 0, misc: false, analog_triggers: true };
@@ -138,6 +149,16 @@ const KNOWN: &[(u16, u16, Family, &str, Features)] = &[
     (vendor::VALVE, 0x1205, Family::Xbox, "Steam Deck", STEAM_DECK),
     (vendor::VALVE, 0x1102, Family::Xbox, "Steam Controller", STEAM_CONTROLLER),
     (vendor::VALVE, 0x1142, Family::Xbox, "Steam Controller", STEAM_CONTROLLER),
+    // SteelSeries (A B X Y, Xbox style)
+    (vendor::STEELSERIES, 0x1412, Family::Xbox, "SteelSeries Free", PLAIN),
+    (vendor::STEELSERIES, 0x1418, Family::Xbox, "SteelSeries Stratus XL", PLAIN),
+    (vendor::STEELSERIES, 0x1420, Family::Xbox, "SteelSeries Nimbus", PLAIN),
+    (vendor::STEELSERIES, 0x1430, Family::Xbox, "SteelSeries Stratus Duo", PLAIN),
+    (vendor::STEELSERIES, 0x1431, Family::Xbox, "SteelSeries Stratus Duo", PLAIN),
+    (vendor::STEELSERIES_BT, 0x1417, Family::Xbox, "SteelSeries Stratus XL", PLAIN),
+    (vendor::STEELSERIES_BT, 0x1419, Family::Xbox, "SteelSeries Stratus", PLAIN),
+    (vendor::STEELSERIES_BT, 0x1420, Family::Xbox, "SteelSeries Nimbus", PLAIN),
+    (vendor::STEELSERIES_BT, 0x1431, Family::Xbox, "SteelSeries Stratus Duo", PLAIN),
     // Logitech in XInput mode
     (vendor::LOGITECH, 0xc21d, Family::Xbox, "Logitech F310", PLAIN),
     (vendor::LOGITECH, 0xc21e, Family::Xbox, "Logitech F510", PLAIN),
@@ -169,7 +190,41 @@ const BY_NAME: &[(&str, Family, &str, Features)] = &[
     ("pro controller", Family::Nintendo, "Switch Pro Controller", SWITCH_PRO),
     ("switch", Family::Nintendo, "Switch controller", SWITCH_PRO),
     ("nintendo", Family::Nintendo, "Nintendo controller", SWITCH_PRO),
+    ("steelseries", Family::Xbox, "SteelSeries controller", PLAIN),
+    ("stratus", Family::Xbox, "SteelSeries Stratus", PLAIN),
+    ("nimbus", Family::Xbox, "SteelSeries Nimbus", PLAIN),
 ];
+
+/// Makers whose unknown pads still print their buttons one way, and what to
+/// call such a pad.
+const MAKERS: &[(u16, Family, &str)] = &[
+    (vendor::MICROSOFT, Family::Xbox, "Xbox controller"),
+    (vendor::VALVE, Family::Xbox, "Valve controller"),
+    (vendor::LOGITECH, Family::Xbox, "Logitech controller"),
+    (vendor::STEELSERIES, Family::Xbox, "SteelSeries controller"),
+    (vendor::STEELSERIES_BT, Family::Xbox, "SteelSeries controller"),
+    (vendor::SONY, Family::PlayStation, "PlayStation controller"),
+    (vendor::NINTENDO, Family::Nintendo, "Nintendo controller"),
+    (vendor::EIGHTBITDO, Family::Generic, "8BitDo controller"),
+];
+
+/// A name a system gives a pad it does not know, rather than the pad's own:
+/// Windows' "HID-compliant game controller" (in any language: "HID-
+/// spelbesturing", "HID-konformer Gamecontroller"), DirectInput's "6 axis 16
+/// button gamepad with hat switch" (or "As: 6 knop: 16 gamepad met
+/// kapschakelaar"), "USB Joystick", "Generic X-Box pad".
+pub fn is_generic_name(name: &str) -> bool {
+    let n = name.trim().to_lowercase();
+    if n.is_empty() {
+        return true;
+    }
+    const WORDS: &[&str] = &[
+        "hid", "generic", "usb joystick", "usb gamepad", "game controller", "gamecontroller",
+        "joystick", "gamepad with", "gamepad met", "manette", "spelbesturing", "mando de juego",
+        "controller (", "twin usb", "dragonrise", " axis ", " button ", "knop:",
+    ];
+    WORDS.iter().any(|w| n.contains(w))
+}
 
 /// Tell a pad from what it reports. `vendor` and `product` are `None` when
 /// the system did not say (XInput never does).
@@ -183,18 +238,14 @@ pub fn identify(vendor: Option<u16>, product: Option<u16>, name: &str) -> Model 
     if let Some((_, family, model, features)) = BY_NAME.iter().find(|n| lower.contains(n.0)) {
         return Model { family: *family, name: (*model).into(), features: *features, matched: Matched::Name };
     }
-    // An unknown product from a known maker still prints that maker's buttons.
-    let by_vendor = match vendor {
-        Some(vendor::MICROSOFT) | Some(vendor::VALVE) | Some(vendor::LOGITECH) => Some(Family::Xbox),
-        Some(vendor::SONY) => Some(Family::PlayStation),
-        Some(vendor::NINTENDO) => Some(Family::Nintendo),
-        _ => None,
-    };
-    let shown = if name.trim().is_empty() { "Gamepad".to_string() } else { name.trim().to_string() };
-    match by_vendor {
-        Some(family) => Model { family, name: shown, features: PLAIN, matched: Matched::Ids },
-        None => Model { family: Family::Generic, name: shown, features: PLAIN, matched: Matched::Fallback },
+    // An unknown product from a known maker still prints that maker's buttons,
+    // and a name of its own beats the system's placeholder.
+    if let Some((_, family, maker)) = vendor.and_then(|v| MAKERS.iter().find(|m| m.0 == v)) {
+        let shown = if is_generic_name(name) { (*maker).to_string() } else { name.trim().to_string() };
+        return Model { family: *family, name: shown, features: PLAIN, matched: Matched::Maker };
     }
+    let shown = if is_generic_name(name) { "Controller".to_string() } else { name.trim().to_string() };
+    Model { family: Family::Generic, name: shown, features: PLAIN, matched: Matched::Fallback }
 }
 
 #[cfg(test)]
@@ -228,7 +279,27 @@ mod tests {
         // A new Sony product still prints Sony's buttons.
         assert_eq!(identify(Some(0x054c), Some(0x9999), "Mystery").family, Family::PlayStation);
         let m = identify(Some(0x1234), Some(0x5678), "  ");
-        assert_eq!((m.family, m.name.as_str(), m.matched), (Family::Generic, "Gamepad", Matched::Fallback));
+        assert_eq!((m.family, m.name.as_str(), m.matched), (Family::Generic, "Controller", Matched::Fallback));
+    }
+
+    #[test]
+    fn a_steelseries_pad_windows_does_not_know() {
+        // What Windows (in Dutch) and SDL called a SteelSeries pad.
+        for name in ["HID-spelbesturing", "As: 6 knop: 16 gamepad met kapschakelaar"] {
+            let m = identify(Some(0x0111), Some(0x1434), name);
+            assert_eq!((m.family, m.name.as_str(), m.matched), (Family::Xbox, "SteelSeries controller", Matched::Maker));
+        }
+        assert_eq!(identify(Some(0x0111), Some(0x1431), "x").name, "SteelSeries Stratus Duo");
+    }
+
+    #[test]
+    fn generic_names() {
+        for n in ["HID-compliant game controller", "HID-spelbesturing", "6 axis 16 button gamepad with hat switch", "USB Joystick", "Generic X-Box pad", ""] {
+            assert!(is_generic_name(n), "{n}");
+        }
+        for n in ["Xbox Wireless Controller", "DualSense Wireless Controller", "SteelSeries Stratus Duo", "8BitDo Pro 2"] {
+            assert!(!is_generic_name(n), "{n}");
+        }
     }
 
     #[test]

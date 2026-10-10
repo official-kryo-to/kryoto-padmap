@@ -34,7 +34,7 @@ mod remap;
 mod sdl;
 
 pub use control::Control;
-pub use identify::{identify, vendor, Family, Features, Matched, Model};
+pub use identify::{identify, is_generic_name, vendor, Family, Features, Matched, Model};
 pub use layout::{Label, Layout};
 pub use remap::Remap;
 pub use sdl::{config_env, lookup_in, SdlError, SdlMapping};

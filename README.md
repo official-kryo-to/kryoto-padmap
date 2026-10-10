@@ -13,6 +13,7 @@ Made for [Kryoto Desktop](https://kryo.to), MIT licensed.
 | | |
 |---|---|
 | `identify(vendor, product, name)` | Tells a pad's **family** (Xbox, PlayStation, Nintendo, or generic) and **model** (DualSense Edge, Xbox Elite Series 2, Switch Pro Controller, Steam Deck…) from its USB ids. When there are none, as with XInput, it falls back to the pad's name, then to its maker. It also reports how it knew. |
+| `is_generic_name(name)` | Tells the system's placeholder for an unknown pad (Windows' "HID-compliant game controller" in any language, DirectInput's "6 axis 16 button gamepad with hat switch") from a real name, so a screen can show the maker's name instead (`identify` already does: an unknown SteelSeries pad is "SteelSeries controller"). |
 | `Layout(family).label(control)` | What each control is **called** on that pad: `A` / `Cross` / `B` for the bottom button, `RT` / `R2` / `ZR`, `View` / `Create` / `-`. Also which button **confirms** in menus (A on the right on Nintendo pads). |
 | `Remap` | "This button acts as that one", always kept a **valid permutation**: giving a button a new job hands its old job to the button that had it. No job is ever lost or doubled. |
 | `SdlMapping` | Parses an SDL game controller mapping and **rewrites it under a `Remap`**. The result goes in `SDL_GAMECONTROLLERCONFIG`, which SDL games read, and so do Wine and Proton, whose controller driver is built on SDL. Steam passes its remaps to games on Linux the same way. |
