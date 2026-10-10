@@ -49,7 +49,7 @@ For an SDL remap to reach a game, SDL has to see the pad through the same driver
 
 ## The drawings
 
-`art/` holds each family as a pixel-art SVG, 112 × 72 art pixels. Every control is its own `<g id="…">` named by its SDL name (`a`, `leftshoulder`, `dpup`…), so a page can light up what is pressed. Kryoto Desktop draws them live from [`src/lib/pad-art.ts`](https://github.com/official-kryo-to/kryoto-desktop/blob/main/src/lib/pad-art.ts). The home button wears Kryoto's K// mark.
+`art/` holds each family as a pixel-art SVG, 112 × 72 art pixels, each in its own colours: a carbon Xbox pad, a white and black DualSense with its light bars, a black Switch Pro, a grey universal pad. Light comes from the top left, the grips fade into a dithered shade, and every key casts a one-pixel shadow. Every control is its own `<g id="…">` named by its SDL name (`a`, `leftshoulder`, `dpup`…), so a page can light up what is pressed. Kryoto Desktop draws them live from `src/lib/pad-art.ts` in kryoto-desktop. The home button wears Kryoto's K// mark.
 
 ## Refreshing the database
 
